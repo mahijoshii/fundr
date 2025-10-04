@@ -1,10 +1,14 @@
 import { useState } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import TextField from '../components/TextField';
+
+import { colors, fonts, radius, spacing } from '../constants/theme';
 import PrimaryButton from '../components/PrimaryButton';
+import TextField from '../components/TextField';
 import AuthCard from '../components/AuthCard';
-import { colors, fonts, spacing } from '../constants/theme';
+import LogoMark from '../components/LogoMark';
 import { signup } from '../lib/auth';
 
 export default function SignupScreen() {
@@ -15,32 +19,88 @@ export default function SignupScreen() {
   const onSignup = async () => {
     try {
       await signup({ email: email.trim(), userId: userId.trim(), password });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       router.replace('/profile');
     } catch (e: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Signup failed', e.message ?? 'Invalid input');
     }
   };
 
   return (
-    <View style={s.wrap}>
-      <Text style={[fonts.h1, { marginBottom: spacing.sm }]}>Create Account</Text>
-      <Text style={fonts.hint}>Auth0 will live here later. Placeholder for demo.</Text>
+    <LinearGradient
+      colors={[colors.bg, '#190B30', '#1D0F38']}
+      start={{ x: 0.1, y: 0.1 }}
+      end={{ x: 0.9, y: 1 }}
+      style={styles.screen}
+    >
+      {/* Brand header */}
+      <View style={styles.header}>
+        <LogoMark size={56} />
+        <Text style={styles.brand}>Fundr</Text>
+        <Text style={styles.tag}>Find the money that finds you.</Text>
+      </View>
 
       <AuthCard>
-        <TextField placeholder="Email" keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} />
+        <Text style={styles.cardTitle}>Create your account</Text>
         <View style={{ height: spacing.sm }} />
-        <TextField placeholder="User ID" autoCapitalize="none" value={userId} onChangeText={setUserId} />
+        <TextField
+          placeholder="Email"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          value={email}
+          onChangeText={setEmail}
+        />
         <View style={{ height: spacing.sm }} />
-        <TextField placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} />
+        <TextField
+          placeholder="User ID"
+          autoCapitalize="none"
+          value={userId}
+          onChangeText={setUserId}
+        />
+        <View style={{ height: spacing.sm }} />
+        <TextField
+          placeholder="Password"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+        />
         <View style={{ height: spacing.lg }} />
         <PrimaryButton title="Continue" onPress={onSignup} />
         <View style={{ height: spacing.sm }} />
-        <Text style={fonts.hint}>Use: mahi / mahi22joshi@gmail.com / 123</Text>
+        <Text style={styles.hint}>Demo: mahi / mahi22joshi@gmail.com / 123</Text>
       </AuthCard>
-    </View>
+
+      <Text style={styles.footer}>Auth0 signup coming next</Text>
+    </LinearGradient>
   );
 }
 
-const s = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: colors.bg, padding: spacing.lg, justifyContent: 'center', gap: spacing.lg },
+const styles = StyleSheet.create({
+  screen: { flex: 1, padding: spacing.lg, gap: spacing.lg },
+  header: {
+    alignItems: 'center',
+    gap: 8,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.md,
+  },
+  brand: {
+    ...fonts.h1,
+    letterSpacing: 0.5,
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowRadius: 12,
+  },
+  tag: { ...fonts.hint, opacity: 0.9 },
+  cardTitle: {
+    ...fonts.h2,
+    marginBottom: spacing.xs,
+    color: colors.text,
+  },
+  hint: { ...fonts.hint, textAlign: 'center' },
+  footer: {
+    ...fonts.hint,
+    textAlign: 'center',
+    marginTop: 'auto',
+    opacity: 0.8,
+  },
 });
