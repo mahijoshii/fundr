@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from services import snowflake_service
+from services import canada_api_service
 
 router = APIRouter()
 
@@ -12,11 +12,11 @@ class UserProfile(BaseModel):
 
 @router.post("/")
 def check_eligibility(profile: UserProfile):
-    subsidies = snowflake_service.get_subsidies()
+    # Example: if student, look for student-related grants
+    query = "student" if profile.student else None
+    active_grants = canada_api_service.fetch_active_grants(limit=20, query=query)
 
-    # For now: return *all subsidies* regardless of profile
-    # Later in Phase 5: Gemini will filter
     return {
         "user": profile.dict(),
-        "eligible_subsidies": subsidies
+        "eligible_grants": active_grants
     }
