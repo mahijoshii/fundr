@@ -4,4 +4,4 @@ router = APIRouter()
 
 @router.get("/")
 def ask_demo():
-    return {"message": "Ask route working ✅"}
+    return {"message": "Ask route working"}

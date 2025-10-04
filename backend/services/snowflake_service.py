@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 def get_connection():
+    """Create and return a Snowflake connection"""
     return snowflake.connector.connect(
         user=os.getenv("SNOWFLAKE_USER"),
         password=os.getenv("SNOWFLAKE_PASS"),
@@ -15,13 +16,23 @@ def get_connection():
     )
 
 def get_grants(limit=20, keyword=None):
+    """
+    Fetch grants from Snowflake with optional keyword filtering
+    
+    Args:
+        limit: Maximum number of grants to return
+        keyword: Optional keyword to search in program_name, description, and eligibility
+    
+    Returns:
+        List of grant dictionaries
+    """
     conn = get_connection()
     cur = conn.cursor()
 
     if keyword:
         sql = """
             SELECT program_name, funding_low, funding_high, description, eligibility, deadline, url, source
-            FROM grants
+            FROM FUND_DB.PUBLIC.GRANTS
             WHERE program_name ILIKE %s OR description ILIKE %s OR eligibility ILIKE %s
             ORDER BY scraped_at DESC
             LIMIT %s
@@ -30,7 +41,7 @@ def get_grants(limit=20, keyword=None):
     else:
         sql = """
             SELECT program_name, funding_low, funding_high, description, eligibility, deadline, url, source
-            FROM grants
+            FROM FUND_DB.PUBLIC.GRANTS
             ORDER BY scraped_at DESC
             LIMIT %s
         """
