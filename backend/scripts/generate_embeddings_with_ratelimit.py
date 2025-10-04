@@ -13,6 +13,9 @@ from dotenv import load_dotenv
 from google import genai
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Always save embeddings in backend root
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 
 from services import snowflake_service
 
