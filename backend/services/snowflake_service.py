@@ -2,7 +2,7 @@ import snowflake.connector
 import os
 from dotenv import load_dotenv
 
-load_dotenv()  # loads .env
+load_dotenv()
 
 def get_connection():
     return snowflake.connector.connect(
@@ -14,15 +14,42 @@ def get_connection():
         schema=os.getenv("SNOWFLAKE_SCHEMA"),
     )
 
-def get_subsidies():
+def get_grants(limit=20, keyword=None):
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT name, amount, description FROM subsidies;")
+
+    if keyword:
+        sql = """
+            SELECT program_name, funding_low, funding_high, description, eligibility, deadline, url, source
+            FROM grants
+            WHERE program_name ILIKE %s OR description ILIKE %s OR eligibility ILIKE %s
+            ORDER BY scraped_at DESC
+            LIMIT %s
+        """
+        cur.execute(sql, (f"%{keyword}%", f"%{keyword}%", f"%{keyword}%", limit))
+    else:
+        sql = """
+            SELECT program_name, funding_low, funding_high, description, eligibility, deadline, url, source
+            FROM grants
+            ORDER BY scraped_at DESC
+            LIMIT %s
+        """
+        cur.execute(sql, (limit,))
+
     results = cur.fetchall()
     cur.close()
     conn.close()
 
-    # return in dict format
     return [
-        {"name": r[0], "amount": r[1], "description": r[2]} for r in results
+        {
+            "program_name": r[0],
+            "funding_low": r[1],
+            "funding_high": r[2],
+            "description": r[3],
+            "eligibility": r[4],
+            "deadline": r[5],
+            "url": r[6],
+            "source": r[7],
+        }
+        for r in results
     ]
