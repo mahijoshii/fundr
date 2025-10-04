@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Modal, Pressable, FlatList, Alert
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 
 import TextField from '../components/TextField';
@@ -10,51 +11,39 @@ import AuthCard from '../components/AuthCard';
 import LogoMark from '../components/LogoMark';
 import { colors, fonts, spacing, radius } from '../constants/theme';
 
-/** ---- Textbox-style dropdown ---- */
+/* ---------------- Single-select (textbox-style) ---------------- */
 function InlineSelect({
-  placeholder,
-  value,
-  onChange,
-  options,
-}: {
-  placeholder: string;
-  value: string;
-  onChange: (v: string) => void;
-  options: string[];
-}) {
+  placeholder, value, onChange, options,
+}: { placeholder: string; value: string; onChange: (v: string) => void; options: string[] }) {
   const [open, setOpen] = useState(false);
-
   return (
     <>
-      <Pressable style={styles.selectInput} onPress={() => setOpen(true)}>
-        <Text style={[styles.selectText, !value && { opacity: 0.6 }]} numberOfLines={1}>
+      <Pressable style={s.selectInput} onPress={() => setOpen(true)}>
+        <Text style={[s.selectText, !value && { opacity: 0.6 }]} numberOfLines={1}>
           {value || placeholder}
         </Text>
-        <Text style={styles.caret}>▾</Text>
+        <Text style={s.caret}>▾</Text>
       </Pressable>
 
       <Modal transparent animationType="fade" visible={open} onRequestClose={() => setOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setOpen(false)} />
-        <View style={styles.sheet}>
-          <Text style={styles.sheetTitle}>{placeholder}</Text>
+        <Pressable style={s.backdrop} onPress={() => setOpen(false)} />
+        <View style={s.sheet}>
+          <Text style={s.sheetTitle}>{placeholder}</Text>
           <FlatList
             data={options}
             keyExtractor={(item) => item}
             renderItem={({ item }) => (
               <Pressable
-                style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}
-                onPress={() => {
-                  onChange(item);
-                  setOpen(false);
-                }}
+                style={({ pressed }) => [s.row, pressed && { opacity: 0.85 }]}
+                onPress={() => { onChange(item); setOpen(false); }}
               >
-                <Text style={styles.rowText}>{item}</Text>
+                <Text style={s.rowText}>{item}</Text>
               </Pressable>
             )}
-            ItemSeparatorComponent={() => <View style={styles.sep} />}
+            ItemSeparatorComponent={() => <View style={s.sep} />}
           />
-          <Pressable style={styles.cancel} onPress={() => setOpen(false)}>
-            <Text style={styles.cancelText}>Cancel</Text>
+          <Pressable style={s.cancel} onPress={() => setOpen(false)}>
+            <Text style={s.cancelText}>Done</Text>
           </Pressable>
         </View>
       </Modal>
@@ -62,18 +51,77 @@ function InlineSelect({
   );
 }
 
-/** ---- Options ---- */
+/* ---------------- Multi-select (textbox-style) ---------------- */
+function InlineMultiSelect({
+  placeholder, values, onChange, options,
+}: { placeholder: string; values: string[]; onChange: (v: string[]) => void; options: string[] }) {
+  const [open, setOpen] = useState(false);
+  const toggle = (opt: string) =>
+    values.includes(opt) ? onChange(values.filter(v => v !== opt)) : onChange([...values, opt]);
+
+  const preview = values.length ? values.join(', ') : '';
+
+  return (
+    <>
+      <Pressable style={s.selectInput} onPress={() => setOpen(true)}>
+        <Text style={[s.selectText, !values.length && { opacity: 0.6 }]} numberOfLines={1}>
+          {preview || placeholder}
+        </Text>
+        <Text style={s.caret}>▾</Text>
+      </Pressable>
+
+      <Modal transparent animationType="fade" visible={open} onRequestClose={() => setOpen(false)}>
+        <Pressable style={s.backdrop} onPress={() => setOpen(false)} />
+        <View style={s.sheet}>
+          <Text style={s.sheetTitle}>{placeholder}</Text>
+          <FlatList
+            data={options}
+            keyExtractor={(item) => item}
+            renderItem={({ item }) => {
+              const selected = values.includes(item);
+              return (
+                <Pressable
+                  style={({ pressed }) => [s.row, pressed && { opacity: 0.85 }]}
+                  onPress={() => toggle(item)}
+                >
+                  <Text style={s.rowText}>{item}</Text>
+                  <Text style={[s.check, selected && s.checkOn]}>{selected ? '✓' : ''}</Text>
+                </Pressable>
+              );
+            }}
+            ItemSeparatorComponent={() => <View style={s.sep} />}
+          />
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Pressable style={s.clearBtn} onPress={() => onChange([])}>
+              <Text style={s.cancelText}>Clear</Text>
+            </Pressable>
+            <Pressable style={s.cancel} onPress={() => setOpen(false)}>
+              <Text style={s.cancelText}>Done</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
+}
+
+/* ---------------- Options ---------------- */
 const INCOME_OPTS = ['< $25,000', '$25,000 - $50,000', '$50,000 - $100,000', '$100,000+'];
 const RACE_OPTS = ['Asian', 'Black', 'White', 'Latine', 'Middle Eastern', 'Indigenous', 'Other / Mixed'];
 const GENDER_OPTS = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
 const STUDENT_OPTS = ['Full-time', 'Part-time', 'None'];
 const YES_NO = ['Yes', 'No'];
+const ORG_TYPE = ['None', 'Nonprofit', 'Small Business'];
 
-/** ---- Screen ---- */
-export default function ProfileScreen() {
+// Nonprofit-specific
+const FUNDING_PURPOSE = ['sustainability', 'community project'];
+const ELIGIBILITY_TAGS = ['nonprofit', 'youth', 'sustainability'];
+
+export default function ProfileSetupScreen() {
+  // required personal
+  const [name, setName] = useState('Mahi'); // placeholder until Auth0
   const [age, setAge] = useState('');
   const [residency, setResidency] = useState('');
-
   const [income, setIncome] = useState('');
   const [race, setRace] = useState('');
   const [gender, setGender] = useState('');
@@ -82,24 +130,24 @@ export default function ProfileScreen() {
   const [indigenousStatus, setIndigenousStatus] = useState('');
   const [veteranStatus, setVeteranStatus] = useState('');
 
+  // org
+  const [orgType, setOrgType] = useState('None');
+  const [fundingPurpose, setFundingPurpose] = useState<string[]>([]);
+  const [eligibilityTags, setEligibilityTags] = useState<string[]>([]);
+
   const onSave = async () => {
-    // ✅ Validate all fields
-    if (
-      !age ||
-      !residency ||
-      !income ||
-      !race ||
-      !gender ||
-      !studentStatus ||
-      !immigrantStatus ||
-      !indigenousStatus ||
-      !veteranStatus
-    ) {
-      Alert.alert('Missing Information', 'Please fill out all required fields before continuing.');
+    if (!name || !age || !residency || !income || !race || !gender ||
+        !studentStatus || !immigrantStatus || !indigenousStatus || !veteranStatus) {
+      Alert.alert('Missing info', 'Please fill all required fields.');
+      return;
+    }
+    if (orgType === 'Nonprofit' && (!fundingPurpose.length || !eligibilityTags.length)) {
+      Alert.alert('Nonprofit details', 'Select at least one funding purpose and eligibility tag.');
       return;
     }
 
     const payload = {
+      name,
       age,
       residency,
       income,
@@ -109,35 +157,33 @@ export default function ProfileScreen() {
       immigrantStatus,
       indigenousStatus,
       veteranStatus,
+      orgType,
+      fundingPurpose,
+      eligibilityTags,
     };
-    console.log('Profile payload ->', payload);
 
-    router.replace('/(tabs)/swipe');
+    await AsyncStorage.setItem('userProfile', JSON.stringify(payload));
+    router.replace('/(tabs)/swipe'); // or '/(tabs)/profile' if you prefer
   };
 
   return (
     <ScrollView style={{ backgroundColor: colors.bg }}>
-      <View style={styles.wrap}>
-        {/* Brand header */}
-        <View style={styles.header}>
+      <View style={s.wrap}>
+        <View style={s.header}>
           <LogoMark size={56} />
-          <Text style={styles.brand}>Fundr</Text>
+          <Text style={s.brand}>Fundr</Text>
         </View>
 
         <Text style={[fonts.h1, { marginBottom: spacing.sm }]}>Profile Details</Text>
-        <Text style={fonts.hint}>All fields are required to personalize your subsidy matches.</Text>
+        <Text style={fonts.hint}>All fields are required. Nonprofit options appear when selected.</Text>
 
         <AuthCard>
-          {/* Basics */}
+          <TextField placeholder="Name*" value={name} onChangeText={setName} />
+          <View style={{ height: spacing.sm }} />
           <TextField placeholder="Age*" keyboardType="numeric" value={age} onChangeText={setAge} />
           <View style={{ height: spacing.sm }} />
-          <TextField
-            placeholder="Residency (e.g., Toronto, ON)*"
-            value={residency}
-            onChangeText={setResidency}
-          />
+          <TextField placeholder="Residency (e.g., Toronto, ON)*" value={residency} onChangeText={setResidency} />
 
-          {/* Dropdowns */}
           <View style={{ height: spacing.sm }} />
           <InlineSelect placeholder="Income Range*" value={income} onChange={setIncome} options={INCOME_OPTS} />
 
@@ -158,36 +204,48 @@ export default function ProfileScreen() {
 
           <View style={{ height: spacing.sm }} />
           <InlineSelect placeholder="Veteran Status (Yes / No)*" value={veteranStatus} onChange={setVeteranStatus} options={YES_NO} />
-
-          <View style={{ height: spacing.lg }} />
-          <PrimaryButton title="Save & Continue" onPress={onSave} />
         </AuthCard>
+
+        <AuthCard>
+          <Text style={fonts.h2}>Organization</Text>
+          <View style={{ height: spacing.sm }} />
+          <InlineSelect placeholder="Organization Type" value={orgType} onChange={setOrgType} options={ORG_TYPE} />
+
+          {orgType === 'Nonprofit' && (
+            <>
+              <View style={{ height: spacing.md }} />
+              <Text style={fonts.h2}>Nonprofit Details</Text>
+              <View style={{ height: spacing.sm }} />
+              <InlineMultiSelect
+                placeholder="Funding Purpose (multi)"
+                values={fundingPurpose}
+                onChange={setFundingPurpose}
+                options={FUNDING_PURPOSE}
+              />
+              <View style={{ height: spacing.sm }} />
+              <InlineMultiSelect
+                placeholder="Eligibility Tags (multi)"
+                values={eligibilityTags}
+                onChange={setEligibilityTags}
+                options={ELIGIBILITY_TAGS}
+              />
+            </>
+          )}
+        </AuthCard>
+
+        <PrimaryButton title="Save & Continue" onPress={onSave} />
+        <View style={{ height: spacing.xl }} />
       </View>
     </ScrollView>
   );
 }
 
-/** ---- Styles ---- */
-const styles = StyleSheet.create({
-  wrap: {
-    flex: 1,
-    backgroundColor: colors.bg,
-    padding: spacing.lg,
-    justifyContent: 'center',
-    gap: spacing.lg,
-  },
-  header: {
-    alignItems: 'center',
-    gap: 8,
-    marginTop: spacing.xl * 1.5, // extra margin above logo
-    paddingBottom: spacing.sm,
-  },
-  brand: {
-    ...fonts.h1,
-    color: colors.text,
-    letterSpacing: 0.5,
-  },
+const s = StyleSheet.create({
+  wrap: { flex: 1, backgroundColor: colors.bg, padding: spacing.lg, gap: spacing.lg },
+  header: { alignItems: 'center', gap: 8, marginTop: spacing.xl * 1.5, paddingBottom: spacing.sm },
+  brand: { ...fonts.h1, color: colors.text, letterSpacing: 0.5 },
 
+  /* dropdown textbox */
   selectInput: {
     borderRadius: radius?.lg ?? 16,
     borderWidth: 1,
@@ -203,24 +261,21 @@ const styles = StyleSheet.create({
   selectText: { color: colors.text, fontSize: 16, flex: 1 },
   caret: { color: colors.text, fontSize: 18, marginLeft: 8 },
 
-  backdrop: {
-    position: 'absolute', left: 0, right: 0, top: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-  },
+  /* modal sheet */
+  backdrop: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
   sheet: {
-    position: 'absolute',
-    left: spacing.lg, right: spacing.lg, top: '20%',
-    maxHeight: '60%',
-    backgroundColor: '#2A1C49',
-    borderRadius: 22,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    position: 'absolute', left: spacing.lg, right: spacing.lg, top: '20%', maxHeight: '60%',
+    backgroundColor: '#2A1C49', borderRadius: 22, padding: spacing.lg, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
   },
   sheetTitle: { ...fonts.h2, marginBottom: spacing.sm },
-  row: { paddingVertical: 12, paddingHorizontal: 6 },
-  rowText: { ...fonts.p },
+  row: { paddingVertical: 12, paddingHorizontal: 6, flexDirection: 'row', alignItems: 'center' },
+  rowText: { ...fonts.p, flex: 1 },
   sep: { height: 1, backgroundColor: 'rgba(255,255,255,0.08)' },
   cancel: { marginTop: spacing.md, alignSelf: 'flex-end', paddingVertical: 8, paddingHorizontal: 12 },
   cancelText: { ...fonts.p, opacity: 0.8 },
+  clearBtn: { paddingVertical: 8, paddingHorizontal: 12 },
+
+  /* multi-select check */
+  check: { width: 22, textAlign: 'center', color: colors.text, opacity: 0.6 },
+  checkOn: { opacity: 1 },
 });

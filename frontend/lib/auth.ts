@@ -18,3 +18,4 @@ export async function signup(input: SignupInput) {
   if (!ok) throw new Error('Use mahi / mahi22joshi@gmail.com / 123 for now');
   return { userId: input.userId };
 }
+
