@@ -1,13 +1,17 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { View } from 'react-native';
-import { colors } from '../constants/theme';
 
 export default function RootLayout() {
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+    <>
       <StatusBar style="light" />
-      <Stack initialRouteName="login" screenOptions={{ headerShown: false }} />
-    </View>
+      <Stack screenOptions={{ headerShown: false }}>
+        {/* These files must exist as screens under app/ */}
+        <Stack.Screen name="login" />
+        <Stack.Screen name="signup" />
+        <Stack.Screen name="profile" />
+        <Stack.Screen name="home" />
+      </Stack>
+    </>
   );
 }
