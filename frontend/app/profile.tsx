@@ -112,7 +112,7 @@ export default function ProfileScreen() {
     };
     console.log('Profile payload ->', payload);
 
-    router.replace('/home');
+    router.replace('/(tabs)/swipe');
   };
 
   return (

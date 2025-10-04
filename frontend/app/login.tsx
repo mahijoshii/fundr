@@ -19,7 +19,7 @@ export default function LoginScreen() {
     try {
       await login(userId.trim(), password);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      router.replace('/home');
+      router.replace('/(tabs)/swipe');
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Login failed', e.message ?? 'Invalid credentials');
