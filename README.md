@@ -294,54 +294,6 @@ Real-time Matching (matching_service.py)
 
 **Note**: Embeddings only need regeneration when grant data changes.
 
----
-
-## Known Limitations
-
-- **5 User Demo Limit**: Hardcoded for demonstration
-- **Ontario-Focused**: Grant sources are Ontario-specific
-- **No Authentication Tokens**: Uses basic session storage
-- **Static Embeddings**: Require manual regeneration after data updates
-- **Rate Limits**: Gemini API calls limited (1 per user match request)
-- **Expo AV Deprecation**: Audio library will need migration in SDK 54
-
----
-
-## Troubleshooting
-
-### "Network request failed"
-- Verify backend is running: `curl http://YOUR_IP:8000`
-- Check firewall settings
-- Use `10.0.2.2` for Android emulator
-
-### "No matches found"
-- Run `python scripts/generate_embeddings_with_ratelimit.py`
-- Check grant data exists: `SELECT COUNT(*) FROM FUND_DB.PUBLIC.GRANTS`
-- Verify Gemini API key is set
-
-### "User limit reached"
-- Clear Snowflake users: `DELETE FROM FUND_DB.PUBLIC.USERS`
-- Or increase `MAX_USERS` in `routers/user.py`
-
-### Scraper Errors
-- Install Playwright browsers: `playwright install chromium`
-- Check target websites are accessible
-- Adjust scraping delays if rate-limited
-
----
-
-## Future Enhancements
-
-- [ ] Expand to Canada-wide and US grant sources
-- [ ] Add grant application tracking
-- [ ] Implement deadline reminders
-- [ ] Email notifications for new matches
-- [ ] Multi-language support
-- [ ] Grant success rate analytics
-- [ ] Community features (reviews, tips)
-- [ ] Integration with grant application portals
-
----
 
 ## License
 
@@ -351,7 +303,7 @@ This project is built for educational and demonstration purposes.
 
 ## Contributors
 
-Built for [Hackathon Name]
+Built for Hack the Valley
 
 ---
 
@@ -360,4 +312,3 @@ Built for [Hackathon Name]
 - Grant data sourced from public Ontario government resources
 - AI powered by Google Gemini
 - Chatbot powered by Voiceflow
-- Icon set by Ionicons
