@@ -96,3 +96,57 @@ export async function checkEligibility(profile: any) {
     throw err;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   🔹 GRANTS ENDPOINT (uses /match/grants/all)
+   --------------------------------------------------------------------------- */
+export async function getAllGrants(limit: number = 20) {
+  try {
+    const url = `${API_URL}/match/grants/all?limit=${limit}`;
+    console.log('📤 Fetching grants from:', url);
+    
+    const res = await fetch(url);
+    
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Failed to fetch grants (${res.status}): ${text}`);
+    }
+    
+    const data = await res.json();
+    console.log(`✅ Fetched ${data.grants?.length || 0} grants`);
+    return data.grants || [];
+  } catch (err: any) {
+    console.error("❌ Error fetching grants:", err.message);
+    throw err;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   🔹 CHATBOT ENDPOINT (uses /ask)
+   --------------------------------------------------------------------------- */
+export async function askGemini(question: string) {
+  try {
+    const url = `${API_URL}/ask/`;
+    console.log('📤 Asking chatbot:', url);
+    
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      },
+      body: JSON.stringify({ question }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Chatbot request failed (${res.status}): ${text}`);
+    }
+    
+    const data = await res.json();
+    return data.answer || data.response || "No response";
+  } catch (err: any) {
+    console.error("❌ Error asking chatbot:", err.message);
+    throw err;
+  }
+}

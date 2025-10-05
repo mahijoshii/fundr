@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Animated,
   Pressable,
   DeviceEventEmitter,
+  ActivityIndicator,
 } from "react-native";
 import Swiper from "react-native-deck-swiper";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,47 +17,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors, fonts, spacing, radius } from "../../constants/theme";
 
 const { width, height } = Dimensions.get("window");
-
-// ----- 20 placeholder subsidies -----
-const PLACEHOLDER_SUBSIDIES = Array.from({ length: 20 }, (_, i) => ({
-  id: (i + 1).toString(),
-  title: [
-    "Student Housing Rebate",
-    "Green Tech Innovators Grant",
-    "Youth Entrepreneurship Support",
-    "Low-Income Energy Rebate",
-    "Women in STEM Bursary",
-    "Digital Boost for Small Business",
-    "Indigenous Youth Leadership Fund",
-    "Graduate Research Travel Grant",
-    "Community Impact Micro-Grant",
-    "Newcomer Skills Uplift",
-    "Accessibility Improvement Grant",
-    "Startup Launch Fund",
-    "Sustainability Challenge Award",
-    "Arts & Culture Mini-Grant",
-    "Tech Apprenticeship Incentive",
-    "Environmental Restoration Grant",
-    "Rural Broadband Subsidy",
-    "Energy-Efficient Homes Rebate",
-    "Health Innovation Fellowship",
-    "Agriculture Modernization Grant",
-  ][i % 20],
-  description:
-    "Example description for subsidy " +
-    (i + 1) +
-    ". Provides funding or rebates for eligible applicants in specific regions. Criteria include income, residency, and purpose alignment.",
-  region: ["Ontario", "Canada-wide", "BC", "National", "ON / QC"][i % 5],
-  deadline: [
-    "Dec 31, 2025",
-    "Mar 15, 2026",
-    "Aug 1, 2026",
-    "May 20, 2026",
-    "Jan 31, 2026",
-  ][i % 5],
-}));
-
 const MATCHES_KEY = "@fundr/matches";
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 async function saveRightSwipe(card: any) {
   try {
@@ -65,7 +27,6 @@ async function saveRightSwipe(card: any) {
     const exists = arr.some((x: any) => x.id === card.id);
     const next = exists ? arr : [card, ...arr];
     await AsyncStorage.setItem(MATCHES_KEY, JSON.stringify(next));
-    // notify Matches tab immediately
     DeviceEventEmitter.emit("FUND_R_MATCH_SAVED", card);
   } catch (e) {
     console.warn("Failed to save match", e);
@@ -73,18 +34,101 @@ async function saveRightSwipe(card: any) {
 }
 
 export default function SwipeScreen() {
-  const [cards] = useState(PLACEHOLDER_SUBSIDIES);
+  const [cards, setCards] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [index, setIndex] = useState(0);
   const [finished, setFinished] = useState(false);
   const router = useRouter();
 
-  // glow animation values
   const leftGlow = useState(new Animated.Value(0))[0];
   const rightGlow = useState(new Animated.Value(0))[0];
 
-  /** Update glow live while swiping */
+  // Fetch personalized matches on mount
+  useEffect(() => {
+    fetchPersonalizedMatches();
+  }, []);
+
+  const fetchPersonalizedMatches = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Get user profile to extract user_id
+      const profileRaw = await AsyncStorage.getItem('userProfile');
+      if (!profileRaw) {
+        setError("Please complete your profile first");
+        setLoading(false);
+        router.push('/profile');
+        return;
+      }
+
+      const profile = JSON.parse(profileRaw);
+      const userId = profile.user_id;
+
+      if (!userId) {
+        setError("User ID not found in profile");
+        setLoading(false);
+        return;
+      }
+
+      console.log(`Fetching personalized matches for user: ${userId}`);
+
+      // Call the matching endpoint
+      const url = `${API_URL}/match/${userId}`;
+      console.log(`Calling: ${url}`);
+      
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Failed to fetch matches (${response.status}): ${text}`);
+      }
+
+      const data = await response.json();
+      const matches = data.matches || [];
+
+      console.log(`Received ${matches.length} personalized matches`);
+
+      if (matches.length > 0) {
+        // Format matches for swipe UI
+        const formatted = matches.map((match: any, idx: number) => {
+          // Format funding display
+          let fundingDisplay = "Contact for details";
+          if (match.funding_low && match.funding_high) {
+            fundingDisplay = `$${match.funding_low} - $${match.funding_high}`;
+          } else if (match.funding_low) {
+            fundingDisplay = `From $${match.funding_low}`;
+          } else if (match.funding_high) {
+            fundingDisplay = `Up to $${match.funding_high}`;
+          }
+
+          return {
+            id: match.program_name || `grant-${idx}`,
+            title: match.program_name || "Untitled Grant",
+            description: match.description || "No description available",
+            region: match.source || "Ontario",
+            deadline: match.deadline || "Rolling deadline",
+            funding: fundingDisplay,
+            url: match.url || "",
+            score: match.score || 0,
+          };
+        });
+
+        setCards(formatted);
+      } else {
+        setError("No personalized matches found. Try updating your profile!");
+      }
+    } catch (err: any) {
+      console.error("Failed to fetch personalized matches:", err);
+      setError(err.message || "Failed to load personalized matches. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSwiping = (x: number) => {
-    const threshold = 120; // how far to drag before full brightness
+    const threshold = 120;
     const progress = Math.min(Math.abs(x) / threshold, 1);
     if (x > 0) {
       rightGlow.setValue(progress);
@@ -98,7 +142,6 @@ export default function SwipeScreen() {
     }
   };
 
-  /** Short flash after swipe completes */
   const triggerFinalGlow = (side: "left" | "right") => {
     const anim = side === "left" ? leftGlow : rightGlow;
     Animated.sequence([
@@ -107,7 +150,6 @@ export default function SwipeScreen() {
     ]).start();
   };
 
-  /** Slight delay before next card + save right swipes */
   const handleSwiped = async (i: number, dir: "left" | "right") => {
     triggerFinalGlow(dir);
     if (dir === "right") {
@@ -117,36 +159,66 @@ export default function SwipeScreen() {
     setTimeout(() => setIndex(i + 1), 300);
   };
 
-  /** When deck is done */
   const handleSwipedAll = () => setFinished(true);
 
-  // End-of-deck screen
-  if (finished) {
+  // Loading state
+  if (loading) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={[fonts.p, { marginTop: 16, color: colors.text }]}>
+          Finding your personalized matches...
+        </Text>
+      </View>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <View style={styles.centerContainer}>
+        <Ionicons name="alert-circle-outline" size={48} color="#FF6B6B" />
+        <Text style={[fonts.h2, { marginTop: 16, textAlign: "center", paddingHorizontal: 24 }]}>
+          {error}
+        </Text>
+        <Pressable style={styles.retryBtn} onPress={fetchPersonalizedMatches}>
+          <Text style={{ color: "#fff", fontWeight: "600" }}>Retry</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  // End of deck
+  if (finished || cards.length === 0) {
     return (
       <View style={[styles.container, { padding: spacing.lg }]}>
         <View style={styles.endCard}>
           <Ionicons name="sparkles" size={36} color="#B9AEE1" />
           <Text style={[fonts.h1, { textAlign: "center", marginTop: 8 }]}>
-            You’ve reached the end ✨
+            You've seen all your matches
           </Text>
           <Text style={[fonts.p, { textAlign: "center", opacity: 0.85 }]}>
-            Come back later for more matches,{"\n"}check your saved ones, or search directly.
+            Check your saved matches, search for more grants,{"\n"}or come back later for new opportunities.
           </Text>
 
           <View style={styles.endActions}>
             <Pressable
               style={[styles.cta, styles.ghost]}
-              onPress={() => router.push("/matches")}
+              onPress={() => router.push("/(tabs)/matches")}
             >
-              <Text style={styles.ctaText}>Check Matches</Text>
+              <Text style={styles.ctaText}>View Matches</Text>
             </Pressable>
             <Pressable
               style={[styles.cta, styles.ghost]}
-              onPress={() => router.push("/search")}
+              onPress={() => router.push("/(tabs)/search")}
             >
-              <Text style={styles.ctaText}>Go to Search</Text>
+              <Text style={styles.ctaText}>Search Grants</Text>
             </Pressable>
           </View>
+
+          <Pressable style={styles.retryBtn} onPress={fetchPersonalizedMatches}>
+            <Text style={{ color: "#fff", fontWeight: "600" }}>Refresh Matches</Text>
+          </Pressable>
         </View>
       </View>
     );
@@ -155,24 +227,22 @@ export default function SwipeScreen() {
   return (
     <View style={styles.container}>
       <Swiper
-  cards={cards}
-  renderCard={(card: any) => <SubsidyCard data={card} />}
-  backgroundColor={colors.bg}
-  stackSize={2}
-  cardVerticalMargin={40}
-  onSwiping={(x) => handleSwiping(x)}
-  onSwipedLeft={(i) => handleSwiped(i, "left")}
-  onSwipedRight={(i) => handleSwiped(i, "right")}
-  onSwipedAll={handleSwipedAll}
-  cardIndex={index}
-  animateOverlayLabelsOpacity
-  verticalSwipe={false}
-/>
+        cards={cards}
+        renderCard={(card: any) => <SubsidyCard data={card} />}
+        backgroundColor={colors.bg}
+        stackSize={2}
+        cardVerticalMargin={40}
+        onSwiping={(x) => handleSwiping(x)}
+        onSwipedLeft={(i) => handleSwiped(i, "left")}
+        onSwipedRight={(i) => handleSwiped(i, "right")}
+        onSwipedAll={handleSwipedAll}
+        cardIndex={index}
+        animateOverlayLabelsOpacity
+        verticalSwipe={false}
+      />
 
-
-      {/* bottom glowing icons */}
+      {/* Bottom glowing icons */}
       <View style={styles.actions}>
-        {/* left / no */}
         <Animated.View
           style={[
             styles.iconWrap,
@@ -200,7 +270,6 @@ export default function SwipeScreen() {
           <Ionicons name="close" size={44} color="#FF6B6B" />
         </Animated.View>
 
-        {/* right / yes */}
         <Animated.View
           style={[
             styles.iconWrap,
@@ -232,7 +301,7 @@ export default function SwipeScreen() {
   );
 }
 
-/* Card */
+/* Card Component */
 function SubsidyCard({ data }: any) {
   if (!data) return null;
   return (
@@ -244,9 +313,16 @@ function SubsidyCard({ data }: any) {
       >
         <Text style={styles.title}>{data.title}</Text>
         <Text style={styles.region}>{data.region}</Text>
+        {data.score > 0 && (
+          <View style={styles.scoreBadge}>
+            <Ionicons name="star" size={14} color="#FFD700" />
+            <Text style={styles.scoreText}>{Math.round(data.score * 100)}% Match</Text>
+          </View>
+        )}
         <View style={styles.line} />
         <Text style={styles.desc}>{data.description}</Text>
         <View style={{ height: spacing.lg }} />
+        <Text style={styles.funding}>Funding: {data.funding}</Text>
         <Text style={styles.deadline}>Deadline: {data.deadline}</Text>
       </ScrollView>
     </View>
@@ -261,8 +337,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
-  // swipe card
+  centerContainer: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.lg,
+  },
   card: {
     backgroundColor: "#2A1C49",
     borderRadius: radius.xl,
@@ -278,15 +359,30 @@ const styles = StyleSheet.create({
   },
   title: { ...fonts.h2, color: "#fff", marginBottom: 4 },
   region: { ...fonts.p, opacity: 0.8, marginBottom: spacing.sm },
+  scoreBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255, 215, 0, 0.15)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+    marginBottom: spacing.sm,
+  },
+  scoreText: {
+    color: "#FFD700",
+    fontSize: 12,
+    fontWeight: "600",
+  },
   desc: { ...fonts.p, color: "#fff", lineHeight: 20 },
   line: {
     height: 1,
     backgroundColor: "rgba(255,255,255,0.1)",
     marginBottom: spacing.sm,
   },
+  funding: { ...fonts.p, color: "#2ECC71", fontWeight: "600", marginBottom: 4 },
   deadline: { ...fonts.p, color: "#B9AEE1", fontWeight: "600" },
-
-  // bottom icons
   actions: {
     position: "absolute",
     bottom: 15,
@@ -303,8 +399,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 3,
   },
-
-  // end-of-deck
   endCard: {
     width: width * 0.88,
     backgroundColor: "rgba(255,255,255,0.06)",
@@ -333,4 +427,11 @@ const styles = StyleSheet.create({
   },
   ctaText: { color: "#fff", fontSize: 16 },
   ghost: { backgroundColor: "rgba(255,255,255,0.06)" },
+  retryBtn: {
+    marginTop: spacing.md,
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: radius.lg,
+  },
 });
