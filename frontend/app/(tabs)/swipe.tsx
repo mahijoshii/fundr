@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -13,9 +13,16 @@ import Swiper from "react-native-deck-swiper";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Audio, AVPlaybackSource } from "expo-av";
 import { colors, fonts, spacing, radius } from "../../constants/theme";
 
 const { width, height } = Dimensions.get("window");
+
+// ---- Sound sources (WAV) ----
+const DING_SRC: AVPlaybackSource = require("../../assets/sounds/ding.wav");   // right swipe
+const SWIPE_SRC: AVPlaybackSource = require("../../assets/sounds/swipe.wav"); // left swipe
+
+const MATCHES_KEY = "@fundr/matches";
 
 // ----- 20 placeholder subsidies -----
 const PLACEHOLDER_SUBSIDIES = Array.from({ length: 20 }, (_, i) => ({
@@ -56,8 +63,6 @@ const PLACEHOLDER_SUBSIDIES = Array.from({ length: 20 }, (_, i) => ({
   ][i % 5],
 }));
 
-const MATCHES_KEY = "@fundr/matches";
-
 async function saveRightSwipe(card: any) {
   try {
     const raw = await AsyncStorage.getItem(MATCHES_KEY);
@@ -65,7 +70,6 @@ async function saveRightSwipe(card: any) {
     const exists = arr.some((x: any) => x.id === card.id);
     const next = exists ? arr : [card, ...arr];
     await AsyncStorage.setItem(MATCHES_KEY, JSON.stringify(next));
-    // notify Matches tab immediately
     DeviceEventEmitter.emit("FUND_R_MATCH_SAVED", card);
   } catch (e) {
     console.warn("Failed to save match", e);
@@ -79,12 +83,58 @@ export default function SwipeScreen() {
   const router = useRouter();
 
   // glow animation values
-  const leftGlow = useState(new Animated.Value(0))[0];
-  const rightGlow = useState(new Animated.Value(0))[0];
+  const leftGlow = useRef(new Animated.Value(0)).current;
+  const rightGlow = useRef(new Animated.Value(0)).current;
+
+  // Preloaded sound handles
+  const dingRef = useRef<Audio.Sound | null>(null);
+  const swipeRef = useRef<Audio.Sound | null>(null);
+
+  // Prepare audio once
+  useEffect(() => {
+    (async () => {
+      try {
+        // ensure playback in iOS silent mode
+        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+
+        const ding = new Audio.Sound();
+        const swp = new Audio.Sound();
+
+        await ding.loadAsync(DING_SRC);
+        await swp.loadAsync(SWIPE_SRC);
+
+        await ding.setVolumeAsync(0.85);
+        await swp.setVolumeAsync(0.75);
+
+        dingRef.current = ding;
+        swipeRef.current = swp;
+      } catch (e) {
+        console.warn("Audio init failed:", e);
+      }
+    })();
+
+    // cleanup on unmount
+    return () => {
+      dingRef.current?.unloadAsync();
+      swipeRef.current?.unloadAsync();
+    };
+  }, []);
+
+  const playSound = async (dir: "left" | "right") => {
+    try {
+      const s = dir === "right" ? dingRef.current : swipeRef.current;
+      if (!s) return;
+      // rewind and play
+      await s.setPositionAsync(0);
+      await s.playAsync();
+    } catch (e) {
+      console.warn("Sound playback failed:", e);
+    }
+  };
 
   /** Update glow live while swiping */
   const handleSwiping = (x: number) => {
-    const threshold = 120; // how far to drag before full brightness
+    const threshold = 120; // drag distance for full brightness
     const progress = Math.min(Math.abs(x) / threshold, 1);
     if (x > 0) {
       rightGlow.setValue(progress);
@@ -107,9 +157,10 @@ export default function SwipeScreen() {
     ]).start();
   };
 
-  /** Slight delay before next card + save right swipes */
+  /** Slight delay before next card + save right swipes + play sound */
   const handleSwiped = async (i: number, dir: "left" | "right") => {
     triggerFinalGlow(dir);
+    await playSound(dir);
     if (dir === "right") {
       const card = cards[i];
       if (card) await saveRightSwipe(card);
@@ -155,20 +206,19 @@ export default function SwipeScreen() {
   return (
     <View style={styles.container}>
       <Swiper
-  cards={cards}
-  renderCard={(card: any) => <SubsidyCard data={card} />}
-  backgroundColor={colors.bg}
-  stackSize={2}
-  cardVerticalMargin={40}
-  onSwiping={(x) => handleSwiping(x)}
-  onSwipedLeft={(i) => handleSwiped(i, "left")}
-  onSwipedRight={(i) => handleSwiped(i, "right")}
-  onSwipedAll={handleSwipedAll}
-  cardIndex={index}
-  animateOverlayLabelsOpacity
-  verticalSwipe={false}
-/>
-
+        cards={cards}
+        renderCard={(card: any) => <SubsidyCard data={card} />}
+        backgroundColor={colors.bg}
+        stackSize={2}
+        cardVerticalMargin={40}
+        onSwiping={(x) => handleSwiping(x)}
+        onSwipedLeft={(i) => handleSwiped(i, "left")}
+        onSwipedRight={(i) => handleSwiped(i, "right")}
+        onSwipedAll={handleSwipedAll}
+        cardIndex={index}
+        animateOverlayLabelsOpacity
+        verticalSwipe={false}
+      />
 
       {/* bottom glowing icons */}
       <View style={styles.actions}>
@@ -181,19 +231,19 @@ export default function SwipeScreen() {
               shadowOpacity: leftGlow.interpolate({
                 inputRange: [0, 1],
                 outputRange: [0, 1],
-              }),
+              }) as any,
               shadowRadius: leftGlow.interpolate({
                 inputRange: [0, 1],
                 outputRange: [0, 24],
-              }),
+              }) as any,
               borderColor: leftGlow.interpolate({
                 inputRange: [0, 1],
                 outputRange: ["rgba(255,255,255,0.1)", "#FF6B6B"],
-              }),
+              }) as any,
               backgroundColor: leftGlow.interpolate({
                 inputRange: [0, 1],
                 outputRange: ["rgba(255,255,255,0.05)", "rgba(255,107,107,0.3)"],
-              }),
+              }) as any,
             },
           ]}
         >
@@ -209,19 +259,19 @@ export default function SwipeScreen() {
               shadowOpacity: rightGlow.interpolate({
                 inputRange: [0, 1],
                 outputRange: [0, 1],
-              }),
+              }) as any,
               shadowRadius: rightGlow.interpolate({
                 inputRange: [0, 1],
                 outputRange: [0, 24],
-              }),
+              }) as any,
               borderColor: rightGlow.interpolate({
                 inputRange: [0, 1],
                 outputRange: ["rgba(255,255,255,0.1)", "#2ECC71"],
-              }),
+              }) as any,
               backgroundColor: rightGlow.interpolate({
                 inputRange: [0, 1],
                 outputRange: ["rgba(255,255,255,0.05)", "rgba(46,204,113,0.3)"],
-              }),
+              }) as any,
             },
           ]}
         >
@@ -261,7 +311,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
   // swipe card
   card: {
     backgroundColor: "#2A1C49",
