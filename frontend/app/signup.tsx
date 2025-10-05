@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+const MATCHES_KEY = "@fundr/matches";
 
 import { colors, fonts, radius, spacing } from '../constants/theme';
 import PrimaryButton from '../components/PrimaryButton';
@@ -16,16 +18,22 @@ export default function SignupScreen() {
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
 
-  const onSignup = async () => {
-    try {
-      await signup({ email: email.trim(), userId: userId.trim(), password });
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      router.replace('/profile');
-    } catch (e: any) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Signup failed', e.message ?? 'Invalid input');
-    }
-  };
+const onSignup = async () => {
+  try {
+    await signup({ email: email.trim(), userId: userId.trim(), password });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    // ✅ Clear any old matches before new account starts fresh
+    await AsyncStorage.removeItem(MATCHES_KEY);
+
+    // then navigate to profile setup
+    router.replace('/profile');
+  } catch (e: any) {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    Alert.alert('Signup failed', e.message ?? 'Invalid input');
+  }
+};
+
 
   return (
     <LinearGradient
