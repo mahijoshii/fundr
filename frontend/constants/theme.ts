@@ -10,7 +10,7 @@ export const colors = {
   cardShadow: 'rgba(0,0,0,0.4)',
 } as const;
 
-export const radius = { lg: 16, xl: 22 } as const;
+export const radius = { md: 12, lg: 16, xl: 22 } as const;
 export const spacing = { xs: 6, sm: 10, md: 14, lg: 20, xl: 28 } as const;
 
 /** Typed text styles so fontWeight is a literal (not generic string) */

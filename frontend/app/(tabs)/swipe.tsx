@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -44,12 +44,7 @@ export default function SwipeScreen() {
   const leftGlow = useState(new Animated.Value(0))[0];
   const rightGlow = useState(new Animated.Value(0))[0];
 
-  // Fetch personalized matches on mount
-  useEffect(() => {
-    fetchPersonalizedMatches();
-  }, []);
-
-  const fetchPersonalizedMatches = async () => {
+  const fetchPersonalizedMatches = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -125,7 +120,12 @@ export default function SwipeScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [router]);
+
+  // Fetch personalized matches on mount
+  useEffect(() => {
+    fetchPersonalizedMatches();
+  }, [fetchPersonalizedMatches]);
 
   const handleSwiping = (x: number) => {
     const threshold = 120;
@@ -195,10 +195,10 @@ export default function SwipeScreen() {
         <View style={styles.endCard}>
           <Ionicons name="sparkles" size={36} color="#B9AEE1" />
           <Text style={[fonts.h1, { textAlign: "center", marginTop: 8 }]}>
-            You've seen all your matches
+            You&apos;ve seen all your matches
           </Text>
           <Text style={[fonts.p, { textAlign: "center", opacity: 0.85 }]}>
-            Check your saved matches, search for more grants,{"\n"}or come back later for new opportunities.
+            Check your saved matches, search for more grants, or come back later for new opportunities.
           </Text>
 
           <View style={styles.endActions}>

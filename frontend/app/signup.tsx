@@ -1,39 +1,49 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import AsyncStorage from "@react-native-async-storage/async-storage";
-const MATCHES_KEY = "@fundr/matches";
 
 import { colors, fonts, radius, spacing } from '../constants/theme';
 import PrimaryButton from '../components/PrimaryButton';
 import TextField from '../components/TextField';
 import AuthCard from '../components/AuthCard';
 import LogoMark from '../components/LogoMark';
-import { signup } from '../lib/auth';
+import { signup, getAccountStats } from '../lib/auth';
+
+const MATCHES_KEY = "@fundr/matches";
 
 export default function SignupScreen() {
   const [email, setEmail] = useState('');
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
+  const [accountStats, setAccountStats] = useState({ totalUsers: 0, maxUsers: 5, remainingSlots: 5 });
 
-const onSignup = async () => {
-  try {
-    await signup({ email: email.trim(), userId: userId.trim(), password });
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  useEffect(() => {
+    loadAccountStats();
+  }, []);
 
-    // ✅ Clear any old matches before new account starts fresh
-    await AsyncStorage.removeItem(MATCHES_KEY);
+  const loadAccountStats = async () => {
+    const stats = await getAccountStats();
+    setAccountStats(stats);
+  };
 
-    // then navigate to profile setup
-    router.replace('/profile');
-  } catch (e: any) {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    Alert.alert('Signup failed', e.message ?? 'Invalid input');
-  }
-};
+  const onSignup = async () => {
+    try {
+      await signup({ email: email.trim(), userId: userId.trim(), password });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
+      // Clear any old matches before new account starts fresh
+      await AsyncStorage.removeItem(MATCHES_KEY);
+
+      // Navigate to profile setup
+      router.replace('/profile');
+    } catch (e: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Signup failed', e.message ?? 'Invalid input');
+    }
+  };
 
   return (
     <LinearGradient
@@ -51,6 +61,16 @@ const onSignup = async () => {
 
       <AuthCard>
         <Text style={styles.cardTitle}>Create your account</Text>
+        
+        {/* Account limit indicator */}
+        <View style={styles.limitBanner}>
+          <Text style={styles.limitText}>
+            {accountStats.remainingSlots > 0 
+              ? `${accountStats.remainingSlots} of ${accountStats.maxUsers} slots available`
+              : 'Account limit reached'}
+          </Text>
+        </View>
+
         <View style={{ height: spacing.sm }} />
         <TextField
           placeholder="Email"
@@ -74,12 +94,28 @@ const onSignup = async () => {
           onChangeText={setPassword}
         />
         <View style={{ height: spacing.lg }} />
-        <PrimaryButton title="Continue" onPress={onSignup} />
+        <PrimaryButton 
+          title="Continue" 
+          onPress={onSignup}
+          disabled={accountStats.remainingSlots === 0}
+        />
         <View style={{ height: spacing.sm }} />
-        <Text style={styles.hint}>Demo: mahi / mahi22joshi@gmail.com / 123</Text>
+        <PrimaryButton 
+          title="Back to Login" 
+          outline 
+          onPress={() => router.push('/login')} 
+        />
+        <View style={{ height: spacing.sm }} />
+        <Text style={styles.hint}>
+          {accountStats.remainingSlots > 0 
+            ? 'Create a unique User ID and password'
+            : 'No more accounts can be created at this time'}
+        </Text>
       </AuthCard>
 
-      <Text style={styles.footer}>Auth0 signup coming next</Text>
+      <Text style={styles.footer}>
+        {accountStats.totalUsers}/{accountStats.maxUsers} demo accounts created
+      </Text>
     </LinearGradient>
   );
 }
@@ -103,6 +139,20 @@ const styles = StyleSheet.create({
     ...fonts.h2,
     marginBottom: spacing.xs,
     color: colors.text,
+  },
+  limitBanner: {
+    backgroundColor: 'rgba(160, 32, 240, 0.15)',
+    borderRadius: radius.md,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(160, 32, 240, 0.3)',
+  },
+  limitText: {
+    ...fonts.hint,
+    color: '#B9AEE1',
+    textAlign: 'center',
+    fontWeight: '600',
   },
   hint: { ...fonts.hint, textAlign: 'center' },
   footer: {

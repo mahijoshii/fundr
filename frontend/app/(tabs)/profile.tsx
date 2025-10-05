@@ -8,6 +8,7 @@ import { colors, fonts, spacing, radius } from '../../constants/theme';
 import LogoMark from '../../components/LogoMark';
 import PrimaryButton from '../../components/PrimaryButton';
 import TextField from '../../components/TextField';
+import { saveUserProfile } from '../../lib/api';
 
 /* ------------- Reusable selects (same as onboarding) ------------- */
 function InlineSelect({
@@ -108,6 +109,7 @@ const ELIGIBILITY_TAGS = ['nonprofit', 'youth', 'sustainability'];
 export default function ProfileTab() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState<any>(null);
 
   useEffect(() => {
@@ -123,7 +125,7 @@ export default function ProfileTab() {
 
   const save = async () => {
     const p = profile || {};
-    // required checks
+    // Required checks
     const required = ['name','age','residency','income','race','gender','studentStatus','immigrantStatus','indigenousStatus','veteranStatus'];
     for (const k of required) {
       if (!p[k]) { Alert.alert('Missing field', `Please fill ${k}.`); return; }
@@ -134,9 +136,26 @@ export default function ProfileTab() {
         return;
       }
     }
-    await AsyncStorage.setItem('userProfile', JSON.stringify(p));
-    setEditing(false);
-    Alert.alert('Saved', 'Profile updated.');
+
+    setSaving(true);
+    try {
+      // 1. Save locally
+      await AsyncStorage.setItem('userProfile', JSON.stringify(p));
+
+      // 2. Send to backend to update Snowflake
+      await saveUserProfile(p);
+
+      // 3. Clear any cached matches so new matching will run
+      await AsyncStorage.removeItem('@fundr/matches');
+
+      setEditing(false);
+      Alert.alert('Saved', 'Profile updated! Your matches will refresh on next swipe.');
+    } catch (error: any) {
+      console.error("Error saving profile:", error);
+      Alert.alert("Error", "Failed to save profile to backend");
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) {
@@ -152,7 +171,7 @@ export default function ProfileTab() {
       <View style={s.wrap}>
         <View style={s.header}>
           <LogoMark size={64} />
-          <Text style={fonts.h1}>Hello, {profile?.name || 'there'} 👋</Text>
+          <Text style={fonts.h1}>Hello, {profile?.name || 'there'}</Text>
           <Text style={fonts.hint}>Review or update your details.</Text>
         </View>
 
@@ -163,7 +182,7 @@ export default function ProfileTab() {
             <>
               <TextField placeholder="Name*" value={profile.name} onChangeText={(v) => update({ name: v })} />
               <View style={{ height: spacing.sm }} />
-              <TextField placeholder="Age*" keyboardType="numeric" value={profile.age} onChangeText={(v) => update({ age: v })} />
+              <TextField placeholder="Age*" keyboardType="numeric" value={String(profile.age)} onChangeText={(v) => update({ age: v })} />
               <View style={{ height: spacing.sm }} />
               <TextField placeholder="Residency*" value={profile.residency} onChangeText={(v) => update({ residency: v })} />
 
@@ -211,9 +230,13 @@ export default function ProfileTab() {
               )}
 
               <View style={{ height: spacing.lg }} />
-              <PrimaryButton title="Save Changes" onPress={save} />
+              <PrimaryButton 
+                title={saving ? "Saving..." : "Save Changes"} 
+                onPress={save} 
+                disabled={saving}
+              />
               <View style={{ height: spacing.sm }} />
-              <PrimaryButton title="Cancel" outline onPress={() => setEditing(false)} />
+              <PrimaryButton title="Cancel" outline onPress={() => setEditing(false)} disabled={saving} />
             </>
           ) : (
             <>
@@ -246,7 +269,7 @@ export default function ProfileTab() {
   );
 }
 
-function Row({ label, value }: { label: string; value?: string }) {
+function Row({ label, value }: { label: string; value?: string | number }) {
   return (
     <View style={s.rowWrap}>
       <Text style={[fonts.hint, { opacity: 0.9 }]}>{label}</Text>
@@ -257,11 +280,8 @@ function Row({ label, value }: { label: string; value?: string }) {
 
 const s = StyleSheet.create({
   loading: { flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
-
   wrap: { flex: 1, backgroundColor: colors.bg, padding: spacing.lg, gap: spacing.lg },
-
   header: { alignItems: 'center', gap: 8, paddingTop: spacing.xl*2, paddingBottom: spacing.md },
-
   card: {
     borderRadius: radius.xl,
     backgroundColor: 'rgba(255,255,255,0.06)',
@@ -270,10 +290,7 @@ const s = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.sm,
   },
-
   rowWrap: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)' },
-
-  /* select textbox styles */
   selectInput: {
     borderRadius: radius?.lg ?? 16,
     borderWidth: 1,
@@ -285,8 +302,6 @@ const s = StyleSheet.create({
   },
   selectText: { color: colors.text, fontSize: 16, flex: 1 },
   caret: { color: colors.text, fontSize: 18, marginLeft: 8 },
-
-  /* modal sheet */
   backdrop: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
   sheet: {
     position: 'absolute', left: spacing.lg, right: spacing.lg, top: '20%', maxHeight: '60%',
@@ -299,8 +314,6 @@ const s = StyleSheet.create({
   cancel: { marginTop: spacing.md, alignSelf: 'flex-end', paddingVertical: 8, paddingHorizontal: 12 },
   cancelText: { ...fonts.p, opacity: 0.8 },
   clearBtn: { paddingVertical: 8, paddingHorizontal: 12 },
-
-  /* checkmark column for multi-select */
   check: { width: 22, textAlign: 'center', color: colors.text, opacity: 0.6 },
   checkOn: { opacity: 1 },
 });

@@ -5,6 +5,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { saveUserProfile } from '../lib/api';
+import { getCurrentUser } from '../lib/auth';
 
 import TextField from '../components/TextField';
 import PrimaryButton from '../components/PrimaryButton';
@@ -120,7 +121,7 @@ const ELIGIBILITY_TAGS = ['nonprofit', 'youth', 'sustainability'];
 
 export default function ProfileSetupScreen() {
   // required personal
-  const [name, setName] = useState('Mahi'); // placeholder until Auth0
+  const [name, setName] = useState('');
   const [age, setAge] = useState('');
   const [residency, setResidency] = useState('');
   const [income, setIncome] = useState('');
@@ -147,8 +148,15 @@ export default function ProfileSetupScreen() {
       return;
     }
 
+    // Get current logged-in user ID
+    const currentUserId = await getCurrentUser();
+    if (!currentUserId) {
+      Alert.alert('Error', 'No user session found. Please login again.');
+      return;
+    }
+
     const payload = {
-      user_id: name.toLowerCase().replace(/\s+/g, "_"), // temporary until Auth0 integration
+      user_id: currentUserId, // Use the actual logged-in user ID
       name,
       age: Number(age),
       residency,
@@ -163,15 +171,17 @@ export default function ProfileSetupScreen() {
       funding_goal_high: 20000,
       funding_purpose: fundingPurpose,
       eligibility_tags: eligibilityTags,
-      project_summary: "User-created profile via Fundr app",
+      project_summary: `I am a ${studentStatus.toLowerCase()} student looking for funding opportunities in ${residency}.`,
     };
 
     try {
       // 1️⃣ Save locally
       await AsyncStorage.setItem('userProfile', JSON.stringify(payload));
 
-      // 2️⃣ Send to backend
+      // 2️⃣ Send to backend (which saves to Snowflake)
       await saveUserProfile(payload);
+
+      console.log('✅ Profile saved to Snowflake for user:', currentUserId);
 
       // 3️⃣ Navigate to swipe/matching screen
       router.replace('/(tabs)/swipe');
