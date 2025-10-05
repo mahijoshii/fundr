@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
+import { saveUserProfile } from '../lib/api';
 
 import TextField from '../components/TextField';
 import PrimaryButton from '../components/PrimaryButton';
@@ -147,8 +148,9 @@ export default function ProfileSetupScreen() {
     }
 
     const payload = {
+      user_id: name.toLowerCase().replace(/\s+/g, "_"), // temporary until Auth0 integration
       name,
-      age,
+      age: Number(age),
       residency,
       income,
       race,
@@ -157,13 +159,26 @@ export default function ProfileSetupScreen() {
       immigrantStatus,
       indigenousStatus,
       veteranStatus,
-      orgType,
-      fundingPurpose,
-      eligibilityTags,
+      funding_goal_low: 5000,
+      funding_goal_high: 20000,
+      funding_purpose: fundingPurpose,
+      eligibility_tags: eligibilityTags,
+      project_summary: "User-created profile via Fundr app",
     };
 
-    await AsyncStorage.setItem('userProfile', JSON.stringify(payload));
-    router.replace('/(tabs)/swipe'); // or '/(tabs)/profile' if you prefer
+    try {
+      // 1️⃣ Save locally
+      await AsyncStorage.setItem('userProfile', JSON.stringify(payload));
+
+      // 2️⃣ Send to backend
+      await saveUserProfile(payload);
+
+      // 3️⃣ Navigate to swipe/matching screen
+      router.replace('/(tabs)/swipe');
+    } catch (error: any) {
+      console.error("Error saving profile:", error);
+      Alert.alert("Error", "Failed to save profile to backend");
+    }
   };
 
   return (
