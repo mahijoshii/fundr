@@ -135,10 +135,11 @@ export async function getCurrentUser(): Promise<string | null> {
 /**
  * Logout current user
  */
+// auth.ts
 export async function logout(): Promise<void> {
   try {
     await AsyncStorage.removeItem('@fundr/currentUser');
-    await AsyncStorage.removeItem('userProfile');
+    await AsyncStorage.removeItem('userProfile');  // DO clear it now
     await AsyncStorage.removeItem('@fundr/matches');
     console.log('✅ Logout successful');
   } catch (e) {

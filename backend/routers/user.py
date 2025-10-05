@@ -23,60 +23,58 @@ class UserProfile(BaseModel):
     eligibility_tags: list[str] = []
     project_summary: str | None = None
 
-@router.post("/")
-def save_user(profile: UserProfile):
+@router.get("/{user_id}")
+def get_user(user_id: str):
+    """Fetch user profile from Snowflake"""
     conn = snowflake_service.get_connection()
     cur = conn.cursor()
-
+    
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS FUND_DB.PUBLIC.USERS (
-            user_id STRING PRIMARY KEY,
-            name STRING,
-            age INT,
-            residency STRING,
-            income STRING,
-            race STRING,
-            gender STRING,
-            studentStatus STRING,
-            immigrantStatus STRING,
-            indigenousStatus STRING,
-            veteranStatus STRING,
-            funding_goal_low INT,
-            funding_goal_high INT,
-            funding_purpose ARRAY,
-            eligibility_tags ARRAY,
-            project_summary STRING
-        )
-    """)
-
-    cur.execute("""
-        MERGE INTO FUND_DB.PUBLIC.USERS t
-        USING (SELECT %s AS user_id) s
-        ON t.user_id = s.user_id
-        WHEN MATCHED THEN UPDATE SET
-            name=%s, age=%s, residency=%s, income=%s, race=%s, gender=%s,
-            studentStatus=%s, immigrantStatus=%s, indigenousStatus=%s,
-            veteranStatus=%s, funding_goal_low=%s, funding_goal_high=%s,
-            funding_purpose=TO_ARRAY(PARSE_JSON(%s)),
-            eligibility_tags=TO_ARRAY(PARSE_JSON(%s)),
-            project_summary=%s
-        WHEN NOT MATCHED THEN INSERT (user_id, name, age, residency, income, race, gender,
+        SELECT 
+            user_id, name, age, residency, income, race, gender,
             studentStatus, immigrantStatus, indigenousStatus, veteranStatus,
-            funding_goal_low, funding_goal_high, funding_purpose, eligibility_tags, project_summary)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
-                TO_ARRAY(PARSE_JSON(%s)), TO_ARRAY(PARSE_JSON(%s)), %s)
-    """, (
-        profile.user_id, profile.name, profile.age, profile.residency, profile.income, profile.race,
-        profile.gender, profile.studentStatus, profile.immigrantStatus, profile.indigenousStatus,
-        profile.veteranStatus, profile.funding_goal_low, profile.funding_goal_high,
-        json.dumps(profile.funding_purpose), json.dumps(profile.eligibility_tags), profile.project_summary,
-        # Reuse for insert
-        profile.user_id, profile.name, profile.age, profile.residency, profile.income, profile.race,
-        profile.gender, profile.studentStatus, profile.immigrantStatus, profile.indigenousStatus,
-        profile.veteranStatus, profile.funding_goal_low, profile.funding_goal_high,
-        json.dumps(profile.funding_purpose), json.dumps(profile.eligibility_tags), profile.project_summary
-    ))
-    conn.commit()
+            funding_goal_low, funding_goal_high, funding_purpose, 
+            eligibility_tags, project_summary
+        FROM FUND_DB.PUBLIC.USERS
+        WHERE user_id = %s
+    """, (user_id,))
+    
+    row = cur.fetchone()
     cur.close()
     conn.close()
-    return {"status": "ok", "user_id": profile.user_id}
+    
+    if not row:
+        return {"status": "not_found", "message": "User profile not found"}
+    
+    # Parse JSON arrays
+    import json
+    funding_purpose = row[13] if row[13] else []
+    eligibility_tags = row[14] if row[14] else []
+    
+    # Convert Snowflake arrays to Python lists if needed
+    if isinstance(funding_purpose, str):
+        funding_purpose = json.loads(funding_purpose)
+    if isinstance(eligibility_tags, str):
+        eligibility_tags = json.loads(eligibility_tags)
+    
+    return {
+        "status": "ok",
+        "profile": {
+            "user_id": row[0],
+            "name": row[1],
+            "age": row[2],
+            "residency": row[3],
+            "income": row[4],
+            "race": row[5],
+            "gender": row[6],
+            "studentStatus": row[7],
+            "immigrantStatus": row[8],
+            "indigenousStatus": row[9],
+            "veteranStatus": row[10],
+            "funding_goal_low": row[11],
+            "funding_goal_high": row[12],
+            "funding_purpose": funding_purpose,
+            "eligibility_tags": eligibility_tags,
+            "project_summary": row[15]
+        }
+    }

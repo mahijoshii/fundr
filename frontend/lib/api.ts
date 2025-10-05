@@ -150,3 +150,29 @@ export async function askGemini(question: string) {
     throw err;
   }
 }
+
+export async function getUserProfile(userId: string) {
+  try {
+    const url = `${API_URL}/user/${userId}`;
+    console.log('📥 Fetching user profile from:', url);
+    
+    const res = await fetch(url);
+    
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Failed to fetch profile (${res.status}): ${text}`);
+    }
+    
+    const data = await res.json();
+    
+    if (data.status === "not_found") {
+      return null;
+    }
+    
+    console.log('✅ Profile fetched for user:', userId);
+    return data.profile;
+  } catch (err: any) {
+    console.error("❌ Error fetching profile:", err.message);
+    throw err;
+  }
+}

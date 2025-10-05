@@ -4,11 +4,14 @@ import {
   Modal, Pressable, FlatList, Alert
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, spacing, radius } from '../../constants/theme';
 import LogoMark from '../../components/LogoMark';
 import PrimaryButton from '../../components/PrimaryButton';
 import TextField from '../../components/TextField';
 import { saveUserProfile } from '../../lib/api';
+import { logout } from '../../lib/auth';
 
 /* ------------- Reusable selects (same as onboarding) ------------- */
 function InlineSelect({
@@ -111,6 +114,7 @@ export default function ProfileTab() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState<any>(null);
+  const router = useRouter();
 
   useEffect(() => {
     (async () => {
@@ -156,6 +160,28 @@ export default function ProfileTab() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await logout();
+              router.replace('/login');
+            } catch (error: any) {
+              Alert.alert('Error', 'Failed to logout');
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (loading) {
@@ -263,6 +289,12 @@ export default function ProfileTab() {
           )}
         </View>
 
+        {/* Logout Button */}
+        <Pressable style={s.logoutBtn} onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={20} color="#FF6B6B" />
+          <Text style={s.logoutText}>Logout</Text>
+        </Pressable>
+
         <View style={{ height: spacing.xl }} />
       </View>
     </ScrollView>
@@ -316,4 +348,22 @@ const s = StyleSheet.create({
   clearBtn: { paddingVertical: 8, paddingHorizontal: 12 },
   check: { width: 22, textAlign: 'center', color: colors.text, opacity: 0.6 },
   checkOn: { opacity: 1 },
+  logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: radius.lg,
+    backgroundColor: 'rgba(255, 107, 107, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 107, 0.3)',
+    marginTop: spacing.md,
+  },
+  logoutText: {
+    color: '#FF6B6B',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });

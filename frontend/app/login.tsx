@@ -11,6 +11,7 @@ import TextField from '../components/TextField';
 import AuthCard from '../components/AuthCard';
 import LogoMark from '../components/LogoMark';
 import { login, getAccountStats } from '../lib/auth';
+import { getUserProfile } from '../lib/api';
 
 const MATCHES_KEY = "@fundr/matches";
 
@@ -36,14 +37,32 @@ export default function LoginScreen() {
       // Clear saved matches on new login
       await AsyncStorage.removeItem(MATCHES_KEY);
 
-      // Navigate to swipe screen
-      router.replace('/(tabs)/swipe');
+      // Fetch profile from backend for this specific user
+      try {
+        const profile = await getUserProfile(userId.trim().toLowerCase());
+        
+        if (profile) {
+          // Save fetched profile to AsyncStorage
+          await AsyncStorage.setItem('userProfile', JSON.stringify(profile));
+          console.log('✅ Profile loaded for user:', profile.name);
+          
+          // Navigate to swipe screen
+          router.replace('/(tabs)/swipe');
+        } else {
+          // No profile found in Snowflake - go to onboarding
+          console.log('⚠️ No profile found - redirecting to setup');
+          router.replace('/profile');
+        }
+      } catch (profileError) {
+        console.error('Failed to fetch profile:', profileError);
+        // On error, assume no profile and go to setup
+        router.replace('/profile');
+      }
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Login failed', e.message ?? 'Invalid credentials');
     }
   };
-
   return (
     <LinearGradient
       colors={[colors.bg, '#190B30', '#1D0F38']}
