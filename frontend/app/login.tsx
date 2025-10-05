@@ -3,6 +3,9 @@ import { View, Text, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+const MATCHES_KEY = "@fundr/matches";
+
 
 import { colors, fonts, radius, spacing } from '../constants/theme';
 import PrimaryButton from '../components/PrimaryButton';
@@ -16,15 +19,21 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
 
   const onLogin = async () => {
-    try {
-      await login(userId.trim(), password);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      router.replace('/(tabs)/swipe');
-    } catch (e: any) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Login failed', e.message ?? 'Invalid credentials');
-    }
-  };
+  try {
+    await login(userId.trim(), password);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    // ✅ Clear saved matches on new login
+    await AsyncStorage.removeItem(MATCHES_KEY);
+
+    // then navigate
+    router.replace('/(tabs)/swipe');
+  } catch (e: any) {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    Alert.alert('Login failed', e.message ?? 'Invalid credentials');
+  }
+};
+
 
   return (
     <LinearGradient
